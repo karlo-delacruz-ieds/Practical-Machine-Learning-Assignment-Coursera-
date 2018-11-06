@@ -1,0 +1,107 @@
+---
+title: "Practical Machine Learning Model Project"
+author: "Karlo dela Cruz"
+date: "November 16, 2018"
+output:
+  html_document: default
+  pdf_document: default
+  word_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+#### Executive Summary
+
+In this case study, the objective is to predict the manner in which they did the exercise (classe variable) using the data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. The data for this project come from this source: http://web.archive.org/web/20161224072740/http:/groupware.les.inf.puc-rio.br/har. 
+
+For this report, I employed 3 models: CART, CART with 10 fold Cross-Validation, and Random Forest. Among the predictive models, the Random Forest Model has the best accuracy of 99.61%. 
+
+Then, the final model is applied to a test set of 20 samples and correctly predicts the outcome variable.     
+
+#### Data Preparation
+
+Load data of the training data for predictive model building and testing data of 20 samples to correctly predicts the outcome variables.
+```{r load data}
+training <- read.csv("pml-training.csv")
+testing <- read.csv("pml-testing.csv")
+```
+
+For the training data, here we need to split the data to train and test data for model building.
+
+```{r split data}
+library(caret)
+inBuild <- createDataPartition(y=training$classe,
+                               p=0.7, list=FALSE)
+train <- training[inBuild,]
+test <- training[-inBuild,] 
+```
+
+Remove zero covariates; Reduced 160 variables to 104 variables
+
+```{r remove zero covariates}
+nsv <- nearZeroVar(train,saveMetrics=FALSE) 
+train <- train[,-nsv]
+test <- test[,-nsv]
+```
+
+Remove variables with more than 5% missing values; Reduced 104 variables to 59 variables
+
+```{r remove more than 5% missing}
+miss <- which(colMeans(is.na(train)) >= 0.05)
+train <- train[,-miss]
+test <-test[,-miss]
+```
+
+Focus on the data from accelerometer; Reduced 59 variables to 54 variables.
+
+```{r accelerometer variables only}
+train <- train[,-(1:5)]
+test <- test[,-(1:5)]
+```
+
+
+#### Machine Learning Models (Classification Prediction) 
+
+For CART (rpart), the model was able to predict the outcome variable with 73.47% Accuracy. Simple decision tree is developed.
+
+```{r rpart}
+set.seed(123)
+library(rpart)
+rpartmod <- rpart(classe ~ .,data=train)
+predrpart <- predict(rpartmod, newdata = test, type = "class")
+confusionMatrix(test$classe, predrpart) 
+
+```
+
+For CART with 10-fold cross-validation, the model was able to predict the outcome variable with 95.45% Accuracy. For this case, complexity parameter (cp) of the decision tree model should be determined. Results show that the cp should be 0.0002. The cp parameter is considered in the CART model.
+
+```{r rpart with cross-validation}
+library(caret)
+numFolds <- trainControl(method = "cv", number = 10)
+cpGrid <- expand.grid(.cp = seq(0.0001,0.001,0.0001))
+train(classe ~ ., data = train, method = "rpart", trControl = numFolds, tuneGrid = cpGrid)
+
+rpartmod <- rpart(classe ~ .,data=train, cp = 0.0002)
+predrpart <- predict(rpartmod, newdata = test, type = "class")
+confusionMatrix(test$classe, predrpart) 
+```
+
+For Random Forest, the model was able to predict the outcome variable with 99.61% Accuracy. In this model, the model generated 200 decsion trees and minimum of 5 samples per rules of the decision tree.
+
+```{r random forest}
+library(randomForest)
+set.seed(123)
+rfmod <- randomForest(classe ~ .,data=train, ntree = 200, nodesize = 5)
+predrf <- predict(rfmod, newdata = test)
+confusionMatrix(test$classe, predrf)      
+```
+
+### Conclusion
+In this case study, we'll predict the manner in which they did the exercise (classe variable) using random forest prediction algorithm since it has the best accuracy of 99.61% among the 3 classification models. Then, the model is applied to a testing set of 20 samples.   
+```{r final model}
+predfinal <- predict(rfmod, newdata = testing)
+predfinal
+
+```
